@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ff1168">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Special App ✨</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <meta name="mobile-web-app-capable" content="yes">
+    <style>
+        :root { --primary: #ff7eb9; --secondary: #ff1168; }
+        body {
+            margin: 0; font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: white; min-height: 100vh; padding-bottom: 80px;
+        }
+
+        .container {
+            width: 90%; max-width: 450px; margin: 20px auto;
+            background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(15px);
+            border-radius: 30px; padding: 25px; border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            display: none; 
+        }
+
+        .active { display: block; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .card { background: rgba(255, 255, 255, 0.07); border-radius: 20px; padding: 15px; margin-bottom: 15px; }
+        input, textarea { 
+            width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.1); 
+            border: none; border-radius: 10px; color: white; padding: 12px; margin-bottom: 10px; outline: none;
+        }
+
+        .btn-nav {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 10px; z-index: 1000; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 50px; backdrop-filter: blur(10px);
+        }
+
+        .btn-main {
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            color: white; border: none; padding: 10px 20px; border-radius: 50px;
+            font-weight: 600; cursor: pointer; box-shadow: 0 4px 15px rgba(255, 17, 104, 0.4);
+            font-size: 0.8rem;
+        }
+
+        .archive-item { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 15px; margin-top: 10px; position: relative; border: 1px solid rgba(255,255,255,0.1); }
+        canvas { background: white; border-radius: 10px; width: 100%; margin-top: 10px; display: none; touch-action: none; cursor: crosshair; }
+        .delete-btn { position: absolute; top: 10px; right: 10px; background: none; border: none; color: #ff4d4d; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div id="seccion-agenda" class="container active">
+        <h2 style="text-align:center; color: var(--primary);">Tu Agenda ✨</h2>
+        <div class="card">
+            <span style="font-size: 0.7rem; color: var(--primary); letter-spacing: 2px;">MENSAJE DE HOY</span>
+            <p id="frase-hoy" onclick="obtenerFraseDeAPI()" style="cursor:pointer; font-style: italic;">Cargando mensaje para Abby...</p>
+        </div>
+        <div class="card">
+            <span style="font-size: 0.7rem; color: var(--primary); letter-spacing: 2px;">RECOMENDACIÓN MUSICAL</span>
+            <p id="musica-hoy">Cargando canción...</p>
+            <a href="#" id="link-musica" target="_blank" style="color: var(--primary); text-decoration: none; font-weight: bold;">🎧 Escuchar ahora</a>
+        </div>
+    </div>
+
+    <div id="seccion-notas" class="container">
+        <h2 style="text-align:center; color: var(--primary);">Tus Notas 📝</h2>
+        <div class="card">
+            <input type="text" id="mega-title" placeholder="Título...">
+            <textarea id="mega-content" placeholder="Escribe algo..."></textarea>
+            <div style="display: flex; gap: 5px;">
+                <button onclick="startDrawing()" class="btn-main" style="font-size: 0.7rem; padding: 8px 15px;">🎨 Dibujar</button>
+                <label class="btn-main" style="font-size: 0.7rem; padding: 8px 15px; cursor: pointer;">
+                    📷 Foto <input type="file" id="image-input" hidden accept="image/*">
+                </label>
+            </div>
+            <canvas id="paint-canvas" height="200"></canvas>
+            <button onclick="saveMegaNote()" class="btn-main" style="width: 100%; margin-top: 15px;">💾 Guardar Nota</button>
+        </div>
+        <div id="mega-archive"></div>
+    </div>
+
+    <div id="seccion-alarma" class="container">
+        <h2 style="text-align:center; color: var(--primary);">Recordatorios 🔔</h2>
+        <div class="card">
+            <input type="text" id="recordatorio-texto" placeholder="¿Qué hay que recordar?">
+            <input type="time" id="recordatorio-hora">
+            <button onclick="agregarAlarma()" class="btn-main" style="width: 100%;">Añadir Alarma</button>
+        </div>
+        <div id="lista-alarmas"></div>
+    </div>
+
+    <div class="btn-nav">
+        <button class="btn-main" onclick="irA('seccion-agenda')">🏠 Inicio</button>
+        <button class="btn-main" onclick="irA('seccion-notas')">📝 Notas</button>
+        <button class="btn-main" onclick="irA('seccion-alarma')">🔔 Alarma</button>
+    </div>
+    <script>
+function obtenerFraseDeAPI() {
+    const elementoFrase = document.getElementById('frase-hoy');
+    const fechaActual = new Date();
+    const hoy = fechaActual.getDate() + "-" + (fechaActual.getMonth() + 1);
+
+    // 1. Tu base de datos completa (Comercio, Programación y Amor)
+    let frasesMaestras = [
+        "Abby, te quiero muchísimo. ❤️",
+        "Abby, yo confío en ti, sé que puedes lograr lo que te propongas. ✨",
+        "Abby, es por ti por quien late mi corazón. 💓",
+        "Abby, eres el punto y coma (;) que le da sentido a mi código.",
+        "Eres mi función favorita, Abby. Siempre devuelves alegría.",
+        "Abby, ni con 1000 Terabytes podría guardar todo lo que siento por ti.",
+        "Si fueras un algoritmo, serías el más eficiente del mundo, Abby.",
+        "Abby, eres el 'root' de mi felicidad.",
+        "Que tu día sea tan brillante como tu código cuando compila a la primera, Abby.",
+        "Abby, eres la clave primaria de mi base de datos emocional.",
+        "Tú eres el CSS que le da color a mi mundo HTML, Abby.",
+        "Abby, eres mi actualización favorita del sistema.",
+        "Eres el 'Hello World' más bonito que he visto, Abby.",
+        "Abby, mi amor por ti es un bucle infinito (while true).",
+        "Eres la mejor programadora de sonrisas que conozco, Abby.",
+        "Abby, no hay bug que me quite las ganas de verte.",
+        "Contigo, Abby, mi vida no tiene errores de sintaxis.",
+        "Abby, eres el firewall que protege mi corazón.",
+        "Si la felicidad fuera una clase, tú serías la única instancia, Abby.",
+        "Abby, eres el diseño más responsivo que he conocido.",
+        "Abby, te elegiría una y mil veces por encima de cualquier código.",
+        "Eres la respuesta a todos mis 'queries', Abby.",
+        "Abby, ni el mejor procesador corre tan rápido como mi pulso cuando te veo.",
+        "Contigo el despliegue a producción siempre es exitoso, Abby.",
+        "Abby, eres la luz de mi pantalla en las noches de estudio.",
+        "Eres mi constante en un mundo de variables, Abby.",
+        "Abby, tu sonrisa es el mejor debugger para un mal día.",
+        "Eres mi 'commit' más importante, Abby.",
+        "Abby, eres la arquitectura perfecta.",
+        "Si fueras una app, Abby, tendrías 5 estrellas y millones de descargas.",
+        "Abby, eres el Incoterm que define mi entrega perfecta. ❤️",
+        "Contigo, Abby, no existen barreras arancelarias para el amor.",
+        "Abby, eres la exportación más valiosa que ha salido de mi corazón.",
+        "Eres el despacho aduanero más rápido: entraste a mi vida sin restricciones.",
+        "Abby, nuestra logística es perfecta; siempre llegas a tiempo a mi mente.",
+        "Ni el TLC más importante iguala el tratado de paz que tengo contigo, Abby.",
+        "Abby, eres mi activo más preciado en la balanza comercial de la vida.",
+        "Contigo el flete de la vida siempre es 'prepaid' por la felicidad, Abby.",
+        "Abby, eres el certificado de origen de todas mis alegrías.",
+        "Eres la mejor estrategia de mercado, Abby: conquistaste mi corazón al 100%.",
+        "Abby, mi amor por ti no tiene cupos ni cuotas de importación.",
+        "Eres el contenedor que guarda todos mis mejores recuerdos, Abby.",
+        "Abby, contigo cada día es una zona de libre comercio emocional.",
+        "Abby, eres la divisa más fuerte en mi economía personal.",
+        "Eres la ruta logística que siempre me lleva a la felicidad, Abby."
+    ];
+
+    // 2. Rellenamos hasta las 300
+    const mensajesVarios = [
+        "Abby, confío en que serás la mejor Ingeniera en Comercio.",
+        "El mundo es pequeño para alguien tan grande como tú, Abby.",
+        "Abby, vas a conquistar los mercados internacionales con tu talento.",
+        "Nunca olvides lo capaz que eres, Abby.",
+        "Abby, hoy es un gran día para aprender y brillar."
+    ];
+
+    while(frasesMaestras.length < 300) {
+        let m = mensajesVarios[Math.floor(Math.random() * mensajesVarios.length)];
+        frasesMaestras.push(`Abby, ${m} ✨`);
+    }
+
+    // 3. MEZCLADO (Shuffle) - Lo hacemos SIEMPRE para que haya variedad
+    for (let i = frasesMaestras.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [frasesMaestras[i], frasesMaestras[j]] = [frasesMaestras[j], frasesMaestras[i]];
+    }
+
+    // 4. LÓGICA DE MOSTRAR
+    // Si la frase está VACÍA (es la primera vez que carga) y es 27 de marzo:
+    if (elementoFrase.innerText.includes("Cargando") && hoy === "27-3") {
+        elementoFrase.innerText = "\"Abby, es por ti por quien late mi corazón. 💓\"";
+    } else {
+        // En cualquier otro caso o si ya le dio clic, muestra una al azar de las 300
+        elementoFrase.innerText = `"${frasesMaestras[0]}"`;
+    }
+}
+
+</script>
+<script>
+    // --- 1. NAVEGACIÓN ENTRE SECCIONES ---
+    function irA(id) {
+        document.querySelectorAll('.container').forEach(c => c.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
+
+    // --- 2. FUNCIÓN DE LAS 300 FRASES (CON REGLA 27-3) ---
+    function obtenerFraseDeAPI() {
+        const elementoFrase = document.getElementById('frase-hoy');
+        const ahora = new Date();
+        const fechaClave = `${ahora.getDate()}-${ahora.getMonth() + 1}`;
+
+        let frasesMaestras = [
+            "Abby, es por ti por quien late mi corazón. 💓",
+            "Abby, te quiero muchísimo. ❤️",
+            "Abby, eres el Incoterm que define mi entrega perfecta. ❤️",
+            "Abby, nuestra logística es perfecta; siempre llegas a tiempo a mi mente.",
+            "Abby, eres el punto y coma (;) que le da sentido a mi código.",
+            "Abby, tu sonrisa es el mejor debugger para un mal día."
+        ];
+
+        // Rellenamos hasta 300 para asegurar el funcionamiento offline
+        const mensajesVarios = ["Abby, serás la mejor Ingeniera.", "Abby, brilla hoy.", "Eres increíble, Abby."];
+        while(frasesMaestras.length < 300) {
+            let m = mensajesVarios[Math.floor(Math.random() * mensajesVarios.length)];
+            frasesMaestras.push(`Abby, ${m} ✨`);
+        }
+
+        // Mezclamos la baraja
+        for (let i = frasesMaestras.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [frasesMaestras[i], frasesMaestras[j]] = [frasesMaestras[j], frasesMaestras[i]];
+        }
+
+        // Si es 27 de marzo y es el primer mensaje, mostramos la especial
+        if (fechaClave === "27-3" && elementoFrase.innerText.includes("Cargando")) {
+            elementoFrase.innerText = "\"Abby, es por ti por quien late mi corazón. 💓\"";
+        } else {
+            elementoFrase.innerText = `"${frasesMaestras[0]}"`;
+        }
+    }
+
+    // --- 3. REGISTRO DEL SERVICE WORKER (MODO OFFLINE) ---
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('SW registrado con éxito', reg))
+                .catch(err => console.error('Error al registrar SW', err));
+        });
+    }
+
+    // --- 4. CARGA INICIAL ---
+    window.onload = obtenerFraseDeAPI;
+
+</script>
+<script>
+    // --- NAVEGACIÓN ---
+    function irA(seccionId) {
+        document.querySelectorAll('.container').forEach(c => c.classList.remove('active'));
+        document.getElementById(seccionId).classList.add('active');
+    }
+
+    // --- LÓGICA DE NOTAS Y DIBUJO ---
+    let megaNotes = JSON.parse(localStorage.getItem('megaNotes')) || [];
+    const canvas = document.getElementById('paint-canvas');
+    const ctx = canvas.getContext('2d');
+    let drawing = false;
+
+    function startDrawing() {
+        canvas.style.display = 'block';
+        canvas.width = canvas.offsetWidth;
+        canvas.addEventListener('mousedown', (e) => { drawing = true; draw(e); });
+        canvas.addEventListener('mousemove', draw);
+        window.addEventListener('mouseup', () => { drawing = false; ctx.beginPath(); });
+        
+        canvas.addEventListener('touchstart', (e) => { drawing = true; draw(e.touches[0]); e.preventDefault(); }, {passive: false});
+        canvas.addEventListener('touchmove', (e) => { draw(e.touches[0]); e.preventDefault(); }, {passive: false});
+    }
+
+    function draw(e) {
+        if (!drawing) return;
+        ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#302b63';
+        const rect = canvas.getBoundingClientRect();
+        ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+    }
+
+    function saveMegaNote() {
+        const title = document.getElementById('mega-title').value;
+        const text = document.getElementById('mega-content').value;
+        const canvasData = canvas.style.display === 'block' ? canvas.toDataURL() : null;
+        const file = document.getElementById('image-input').files[0];
+
+        const processSave = (imgData = null) => {
+            if(!title && !text && !canvasData && !imgData) return alert("¡Nota vacía!");
+            megaNotes.unshift({
+                title: title || "Sin título",
+                text: text,
+                canvasData: canvasData,
+                imgData: imgData,
+                date: new Date().toLocaleString()
+            });
+            localStorage.setItem('megaNotes', JSON.stringify(megaNotes));
+            renderArchive();
+            resetFields();
+        };
+
+        if (file) {
+            let reader = new FileReader();
+            reader.onload = (e) => processSave(e.target.result);
+            reader.readAsDataURL(file);
+        } else { processSave(); }
+    }
+
+    function renderArchive() {
+        document.getElementById('mega-archive').innerHTML = megaNotes.map((n, i) => `
+            <div class="archive-item">
+                <button onclick="deleteNote(${i})" class="delete-btn">✕</button>
+                <strong style="color: var(--primary)">${n.title}</strong>
+                <p style="font-size: 0.85rem; margin: 5px 0;">${n.text}</p>
+                ${n.canvasData ? `<img src="${n.canvasData}" style="width:100%; background:white; border-radius:10px; margin-top:5px;">` : ''}
+                ${n.imgData ? `<img src="${n.imgData}" style="width:100%; border-radius:10px; margin-top:5px;">` : ''}
+            </div>
+        `).join('');
+    }
+
+    function deleteNote(i) {
+        megaNotes.splice(i, 1);
+        localStorage.setItem('megaNotes', JSON.stringify(megaNotes));
+        renderArchive();
+    }
+
+    function resetFields() {
+        document.getElementById('mega-title').value = '';
+        document.getElementById('mega-content').value = '';
+        canvas.style.display = 'none';
+        if(ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // --- LÓGICA DE ALARMAS ---
+    let alarmas = JSON.parse(localStorage.getItem('alarmas')) || [];
+    const sonido = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+
+    function agregarAlarma() {
+        const texto = document.getElementById('recordatorio-texto').value;
+        const hora = document.getElementById('recordatorio-hora').value;
+        if (!texto || !hora) return alert("Faltan datos");
+        alarmas.push({ texto, hora, id: Date.now(), activa: true });
+        localStorage.setItem('alarmas', JSON.stringify(alarmas));
+        renderAlarmas();
+    }
+
+    function renderAlarmas() {
+        document.getElementById('lista-alarmas').innerHTML = alarmas.map((a, i) => `
+            <div class="archive-item">
+                <button onclick="eliminarAlarma(${i})" class="delete-btn">✕</button>
+                <strong style="color: var(--primary)">${a.hora}</strong> - ${a.texto}
+            </div>
+        `).join('');
+    }
+
+    function eliminarAlarma(i) {
+        alarmas.splice(i, 1);
+        localStorage.setItem('alarmas', JSON.stringify(alarmas));
+        renderAlarmas();
+    }
+
+    function checarHora() {
+        const ahora = new Date();
+        const horaActual = ahora.getHours().toString().padStart(2, '0') + ":" + ahora.getMinutes().toString().padStart(2, '0');
+        alarmas.forEach(a => {
+            if (a.hora === horaActual && a.activa) {
+                sonido.play();
+                alert("🔔 RECORDATORIO: " + a.texto);
+                a.activa = false; 
+                localStorage.setItem('alarmas', JSON.stringify(alarmas));
+            }
+        });
+    }
+
+    // --- LÓGICA DE API Y MÚSICA DINÁMICA ---
+    
+function obtenerFraseDeAPI() {
+    const elementoFrase = document.getElementById('frase-hoy');
+    const fechaActual = new Date();
+    const hoy = fechaActual.getDate() + "-" + (fechaActual.getMonth() + 1);
+
+    // 1. Tu base de datos completa (Comercio, Programación y Amor)
+    let frasesMaestras = [
+        "Abby, te quiero muchísimo. ❤️",
+        "Abby, yo confío en ti, sé que puedes lograr lo que te propongas. ✨",
+        "Abby, es por ti por quien late mi corazón. 💓",
+        "Abby, eres el punto y coma (;) que le da sentido a mi código.",
+        "Eres mi función favorita, Abby. Siempre devuelves alegría.",
+        "Abby, ni con 1000 Terabytes podría guardar todo lo que siento por ti.",
+        "Si fueras un algoritmo, serías el más eficiente del mundo, Abby.",
+        "Abby, eres el 'root' de mi felicidad.",
+        "Que tu día sea tan brillante como tu código cuando compila a la primera, Abby.",
+        "Abby, eres la clave primaria de mi base de datos emocional.",
+        "Tú eres el CSS que le da color a mi mundo HTML, Abby.",
+        "Abby, eres mi actualización favorita del sistema.",
+        "Eres el 'Hello World' más bonito que he visto, Abby.",
+        "Abby, mi amor por ti es un bucle infinito (while true).",
+        "Eres la mejor programadora de sonrisas que conozco, Abby.",
+        "Abby, no hay bug que me quite las ganas de verte.",
+        "Contigo, Abby, mi vida no tiene errores de sintaxis.",
+        "Abby, eres el firewall que protege mi corazón.",
+        "Si la felicidad fuera una clase, tú serías la única instancia, Abby.",
+        "Abby, eres el diseño más responsivo que he conocido.",
+        "Abby, te elegiría una y mil veces por encima de cualquier código.",
+        "Eres la respuesta a todos mis 'queries', Abby.",
+        "Abby, ni el mejor procesador corre tan rápido como mi pulso cuando te veo.",
+        "Contigo el despliegue a producción siempre es exitoso, Abby.",
+        "Abby, eres la luz de mi pantalla en las noches de estudio.",
+        "Eres mi constante en un mundo de variables, Abby.",
+        "Abby, tu sonrisa es el mejor debugger para un mal día.",
+        "Eres mi 'commit' más importante, Abby.",
+        "Abby, eres la arquitectura perfecta.",
+        "Si fueras una app, Abby, tendrías 5 estrellas y millones de descargas.",
+        "Abby, eres el Incoterm que define mi entrega perfecta. ❤️",
+        "Contigo, Abby, no existen barreras arancelarias para el amor.",
+        "Abby, eres la exportación más valiosa que ha salido de mi corazón.",
+        "Eres el despacho aduanero más rápido: entraste a mi vida sin restricciones.",
+        "Abby, nuestra logística es perfecta; siempre llegas a tiempo a mi mente.",
+        "Ni el TLC más importante iguala el tratado de paz que tengo contigo, Abby.",
+        "Abby, eres mi activo más preciado en la balanza comercial de la vida.",
+        "Contigo el flete de la vida siempre es 'prepaid' por la felicidad, Abby.",
+        "Abby, eres el certificado de origen de todas mis alegrías.",
+        "Eres la mejor estrategia de mercado, Abby: conquistaste mi corazón al 100%.",
+        "Abby, mi amor por ti no tiene cupos ni cuotas de importación.",
+        "Eres el contenedor que guarda todos mis mejores recuerdos, Abby.",
+        "Abby, contigo cada día es una zona de libre comercio emocional.",
+        "Abby, eres la divisa más fuerte en mi economía personal.",
+        "Eres la ruta logística que siempre me lleva a la felicidad, Abby."
+    ];
+
+    // 2. Rellenamos hasta las 300
+    const mensajesVarios = [
+        "Abby, confío en que serás la mejor Ingeniera en Comercio.",
+        "El mundo es pequeño para alguien tan grande como tú, Abby.",
+        "Abby, vas a conquistar los mercados internacionales con tu talento.",
+        "Nunca olvides lo capaz que eres, Abby.",
+        "Abby, hoy es un gran día para aprender y brillar."
+    ];
+
+    while(frasesMaestras.length < 300) {
+        let m = mensajesVarios[Math.floor(Math.random() * mensajesVarios.length)];
+        frasesMaestras.push(`Abby, ${m} ✨`);
+    }
+
+    // 3. MEZCLADO (Shuffle) - Lo hacemos SIEMPRE para que haya variedad
+    for (let i = frasesMaestras.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [frasesMaestras[i], frasesMaestras[j]] = [frasesMaestras[j], frasesMaestras[i]];
+    }
+
+    // 4. LÓGICA DE MOSTRAR
+    // Si la frase está VACÍA (es la primera vez que carga) y es 27 de marzo:
+    if (elementoFrase.innerText.includes("Cargando") && hoy === "27-3") {
+        elementoFrase.innerText = "\"Abby, es por ti por quien late mi corazón. 💓\"";
+    } else {
+        // En cualquier otro caso o si ya le dio clic, muestra una al azar de las 300
+        elementoFrase.innerText = `"${frasesMaestras[0]}"`;
+    }
+}
+
+
+    function inicializarMensajeYMusica() {
+        const hoy = new Date();
+        const diaMes = `${hoy.getDate().toString().padStart(2, '0')}-${(hoy.getMonth() + 1).toString().padStart(2, '0')}`;
+        
+        // Frases especiales
+        const especiales = {
+            "01-01": "¡Feliz Año Nuevo! 🥂",
+            "14-02": "¡Feliz San Valentín! ❤️",
+            "25-12": "¡Feliz Navidad! 🎄"
+        };
+
+        if (especiales[diaMes]) {
+            document.getElementById('frase-hoy').innerText = especiales[diaMes];
+        } else {
+            obtenerFraseDeAPI();
+        }
+
+        // --- CÁLCULO DE ARTISTA (Hoy 27/03 inicia Humbe) ---
+        const inicioAnio = new Date(hoy.getFullYear(), 0, 0);
+        const dif = hoy - inicioAnio;
+        const diaDelAnio = Math.floor(dif / (1000 * 60 * 60 * 24)); 
+
+        const misArtistas = ["Humbe", "Mon Laferte", "Michael Jackson", "The Weeknd", "Joji", "Bruno Mars", "Daft Punk"];
+        
+        // El día 86 del año 2026 es el 27 de Marzo.
+        const indiceAjustado = (diaDelAnio - 86 + misArtistas.length) % misArtistas.length;
+        const artistaDeHoy = misArtistas[indiceAjustado];
+
+        document.getElementById('musica-hoy').innerText = `Hoy suena: Especial de ${artistaDeHoy}`;
+        document.getElementById('link-musica').href = "https://open.spotify.com/playlist/0kack7sAkvsXEbavXdBbtc?si=sZrZ2TjJRdKjMJUwPFvIHg&pi=eaMd51w8TT6ts";
+    }
+
+    // --- INICIALIZACIÓN ---
+    window.onload = () => {
+        inicializarMensajeYMusica();
+        renderArchive();
+        renderAlarmas();
+        setInterval(checarHora, 10000);
+
+        if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js') // Asegúrate del ./ antes del nombre
+    .then(reg => console.log('SW registrado con éxito', reg))
+    .catch(err => console.warn('Error al registrar SW', err));
+}
+    };
+</script>
+</body>
+</html>

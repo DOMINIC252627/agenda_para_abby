@@ -1,0 +1,15 @@
+{
+  "name": "My Special App",
+  "short_name": "SpecialApp",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#0f0c29",
+  "theme_color": "#ff1168",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/5968/5968444.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
